@@ -15,15 +15,21 @@
 # =============================================================================
 
 import os
+import pprint
 import tempfile
 import zipfile
 
-
 # Dependencies
+import attr
+
 import dbfread
 
 import pyproj
 
+import typer
+
+# internal
+from . import _base, serializers
 
 # =============================================================================
 # CONSTANTS
@@ -95,7 +101,7 @@ def _extract_to_tempdir(zfile, *, file_to_extract, temp_dir):
     # so the temp file has the same extension
     ext = os.path.splitext(file_to_extract)[-1]
 
-    # create a temp file with the same extension
+    # create a temp file with the same exten sion
     _, tempfile_path = tempfile.mkstemp(suffix=ext, dir=temp_dir)
 
     # extract the file to the temp file
@@ -266,9 +272,62 @@ def metadata_zshapefile_as_dict(path):
 # =============================================================================
 
 
-def _main():
-    pass
+@attr.s(frozen=True)
+class ZippedSHPMetadata(_base.CLIBase):
+    """Zipped SHP metadata extractor."""
+
+    def show(
+        self,
+        path: str = typer.Argument(..., help="Path to the zipped shp file."),
+    ):
+        """A function that takes a path to a zipped shapefile and prints \
+        its metadata."""
+        try:
+            metadata = metadata_zshapefile_as_dict(path)
+        except Exception as err:
+            typer.echo(typer.style(str(err), fg=typer.colors.RED))
+            raise typer.Exit(code=1)
+
+        pprint.pprint(metadata)
+
+    def export(
+        self,
+        path: str = typer.Argument(..., help="Path to the zipped shp file."),
+        to: typer.FileBinaryWrite = typer.Option(
+            ..., help="Path to the output file"
+        ),
+    ):
+        """A function that takes a path to a zipped shapefile and export \
+        its metadata.
+
+        The format are given by the "to" extension: Available formats {formats}
+
+        """
+        ext = os.path.splitext(to.name)[-1]
+        try:
+            serializer = serializers.SERIALIZERS[ext]
+        except KeyError:
+            typer.echo(
+                typer.style(f"Invalid extension: {ext}", fg=typer.colors.RED)
+            )
+            raise typer.Exit(code=1)
+
+        try:
+            metadata = metadata_zshapefile_as_dict(path)
+            serializer(metadata, to)
+        except Exception as err:
+            typer.echo(typer.style(str(err), fg=typer.colors.RED))
+            raise typer.Exit(code=1)
+
+        final_status = f"Exported {path!r} -> {to.name!r}"
+        typer.echo(typer.style(final_status, fg=typer.colors.GREEN))
+        raise typer.Exit(code=0)
+
+    export.__doc__ = export.__doc__.format(
+        formats=set(serializers.SERIALIZERS)
+    )
 
 
-if __name__ == "__main__":
-    _main()
+def main():
+    """Run the CLI interface."""
+    ZippedSHPMetadata().run()

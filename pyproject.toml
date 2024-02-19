@@ -46,7 +46,12 @@ classifiers = [
 urls = { Homepage = "https://github.com/leliel12/gvt_scripts", Repository = "https://github.com/leliel12/gvt_scripts" }
 dependencies = [
     # GENERAL
+    "attrs",
+    "typer",
     "importlib_metadata",
+    "pyyaml",
+    "orjson",
+    "dicttoxml",
 
     # shp_metadata
     "pyproj",
@@ -59,3 +64,6 @@ include-package-data = true
 [tool.setuptools.packages.find]
 include = ["gvt_scripts", "gvt_scripts.*"]
 namespaces = false
+
+[project.scripts]
+shp-metadata = "gvt_scripts.shp_metadata:main"
