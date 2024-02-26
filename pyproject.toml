@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gvt_scripts"
-version = "0.1"
+version = "0.2"
 authors = [{name = "Juan B Cabral & GVT-CONAE", email = "jbcabral@unc.edu.ar"}]
 readme = "README.md"
 license = {file = "LICENSE.txt"}
@@ -52,6 +52,8 @@ dependencies = [
     "pyyaml",
     "orjson",
     "dicttoxml",
+    "tomli_w",
+    "joblib",
 
     # shp_metadata
     "pyproj",
@@ -66,4 +68,4 @@ include = ["gvt_scripts", "gvt_scripts.*"]
 namespaces = false
 
 [project.scripts]
-shp-metadata = "gvt_scripts.shp_metadata:main"
+scan-shp-dir = "gvt_scripts.scanshpdir:main"
