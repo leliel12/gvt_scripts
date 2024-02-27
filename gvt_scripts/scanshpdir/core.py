@@ -18,6 +18,7 @@ import dbfread
 
 import pyproj
 
+from . import models
 from ..utils import sr
 
 
@@ -26,7 +27,12 @@ from ..utils import sr
 # =============================================================================
 
 
-def _read_dbf(dbf_path):
+def _store_dbf(
+    *,
+    db,
+    mdir_path,
+    dbf_path,
+):
     """Reads a dbf file and returns the records as a list.
 
     Parameters
@@ -44,12 +50,13 @@ def _read_dbf(dbf_path):
     records = []
     for record in table:
         record.pop("filename", None)
-        records.append(dict(record))
+        reg = db.store_dbfreg(mdir=mdir_path, **record)
+        records.append(reg)
 
     return records  # return the records
 
 
-def _read_prj(prj_path):
+def _store_prj(*, db, mdir_path, prj_path):
     """Reads a PRJ file and returns its contents as a dict.
 
     Parameters
@@ -66,7 +73,8 @@ def _read_prj(prj_path):
     with open(prj_path) as fp:
         crs = pyproj.CRS(fp.read())
 
-    return crs.to_json_dict()
+    crs_data = crs.to_json_dict()
+    import ipdb; ipdb.set_trace()
 
 
 def _read_jgw(jgw_path):
@@ -114,16 +122,15 @@ def _read_jgw(jgw_path):
 # =============================================================================
 
 
-def read_mdir_metadata(path):
-    datetime_name = path.parent.name
+def store_mdir(path, db):
 
-    data = {}
+    mdir = db.store_mdir(path)
 
-    dbf_path = path / f"{datetime_name}.dbf"
-    data["dbf"] = _read_dbf(dbf_path)
+    dbf_path = mdir.path / f"{mdir.date_str}.dbf"
+    _store_dbf(db=db, mdir_path=mdir.path, dbf_path=dbf_path)
 
-    prj_path = path / f"{datetime_name}.prj"
-    data["prj"] = _read_prj(prj_path)
+    prj_path = path / f"{mdir.date_str}.prj"
+    _store_prj(db=db, mdir_path=mdir.path, prj_path=prj_path)
 
     jgws = {}
     for jgw_path in path.glob("*.jgw"):
@@ -145,14 +152,14 @@ def read_mdir_metadata(path):
     return data
 
 
-def metadata_as_dict(path):
-    all_metadata = {}
+def mkdb(path, db=None):
+    db = models.Database.from_url(db)
 
     # list all dir and files with the name metadata
     metadata_dirs = path.glob("**/*metadata*/")
     for mdir in metadata_dirs:
         if not mdir.is_dir():  # ignore the non directory files
             continue
-        all_metadata[str(mdir)] = read_mdir_metadata(mdir)
+        store_mdir(mdir, db)
 
-    return all_metadata
+    return db

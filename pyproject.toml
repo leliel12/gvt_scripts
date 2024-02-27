@@ -54,6 +54,8 @@ dependencies = [
     "dicttoxml",
     "tomli_w",
     "joblib",
+    "peewee",
+    "python-dateutil",
 
     # shp_metadata
     "pyproj",

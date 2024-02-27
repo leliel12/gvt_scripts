@@ -42,19 +42,15 @@ class ScanMetadataSHPDir(cli_base.CLIBase):
         path: pathlib.Path = typer.Argument(
             ..., help="Path to the directory."
         ),
-        to: typer.FileBinaryWrite = typer.Option(
+        to: pathlib.Path = typer.Option(
             ..., help="Path to the output index file"
         ),
     ):
-        import ipdb
-
-        ipdb.set_trace()
-        try:
-            metadata = core.metadata_as_dict(path)
-            joblib.dump(metadata, to)
-        except Exception as err:
-            typer.echo(typer.style(str(err), fg=typer.colors.RED))
-            raise typer.Exit(code=1)
+        #try:
+        db = core.mkdb(path, to)
+        # except Exception as err:
+        #     typer.echo(typer.style(str(err), fg=typer.colors.RED))
+        #     raise typer.Exit(code=1)
 
         final_status = f"Created index for {sr(path)} -> {sr(to.name)}"
         typer.echo(typer.style(final_status, fg=typer.colors.GREEN))
