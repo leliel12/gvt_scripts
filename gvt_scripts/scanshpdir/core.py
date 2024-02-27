@@ -14,35 +14,16 @@
 # IMPORTS
 # =============================================================================
 
-import os
-import pathlib
-import pprint
-import tempfile
-import zipfile
-
-# Dependencies
-import attr
-
 import dbfread
-
-import joblib
 
 import pyproj
 
-import typer
+from ..utils import sr
 
-# internal
-from . import _base, serializers
 
 # =============================================================================
 # INTERNAL
 # =============================================================================
-
-def sr(obj):
-    """Return the repr of the string representation of the given object.
-
-    """
-    return repr(str(obj))
 
 
 def _read_dbf(dbf_path):
@@ -175,39 +156,3 @@ def metadata_as_dict(path):
         all_metadata[str(mdir)] = read_mdir_metadata(mdir)
 
     return all_metadata
-
-
-# =============================================================================
-# CLI
-# =============================================================================
-
-
-@attr.s(frozen=True)
-class ScanMetadataSHPDir(_base.CLIBase):
-    """Zipped SHP metadata extractor."""
-
-    def mkindex(
-        self,
-        path: pathlib.Path = typer.Argument(
-            ..., help="Path to the directory."
-        ),
-        to: typer.FileBinaryWrite = typer.Option(
-            ..., help="Path to the output index file"
-        ),
-    ):
-
-        try:
-            metadata = metadata_as_dict(path)
-            joblib.dump(metadata, to)
-        except Exception as err:
-            typer.echo(typer.style(str(err), fg=typer.colors.RED))
-            raise typer.Exit(code=1)
-
-        final_status = f"Created index for {sr(path)} -> {sr(to.name)}"
-        typer.echo(typer.style(final_status, fg=typer.colors.GREEN))
-        raise typer.Exit(code=0)
-
-
-def main():
-    """Run the CLI interface."""
-    ScanMetadataSHPDir().run()

@@ -2,9 +2,10 @@ include LICENSE.txt
 include README.md
 include pyproject.toml
 
-recursive-include shp_metadata *.py
+recursive-include gvt_scripts *.py
 
 exclude tox.ini
 exclude .header-template
 
 recursive-exclude tests *
+recursive-exclude old *
