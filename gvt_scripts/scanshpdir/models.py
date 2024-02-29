@@ -56,6 +56,51 @@ class DBFRecordMixin(DateableABC):
     scenerow = pw.IntegerField()
 
 
+class PRJMixin(DateableABC):
+
+    md_directory = pw.ForeignKeyField(MetaDataDirectoryMixin)
+
+    schema = pw.CharField()
+    type = pw.CharField()
+    name = pw.CharField()
+
+    datum_type = pw.CharField()
+    datum_name = pw.CharField()
+    datum_ellipsoid_name = pw.CharField()
+    datum_ellipsoid_semi_major_axis = pw.IntegerField()
+    datum_ellipsoid_inverse_flattening = pw.FloatField()
+    datum_id_authority = pw.CharField()
+    datum_id_code = pw.IntegerField()
+
+    coordinate_system_subtype = pw.CharField()
+
+
+class CoordinateSystemAxisEntryMixin(DateableABC):
+
+    prj = pw.ForeignKeyField(PRJMixin)
+
+    name = pw.CharField()
+    abbreviation = pw.CharField()
+    direction = pw.CharField()
+    unit_type = pw.CharField()
+    unit_name = pw.CharField()
+    unit_conversion_factor = pw.FloatField()
+
+
+class JGWMixin(DateableABC):
+
+    md_directory = pw.ForeignKeyField(MetaDataDirectoryMixin)
+
+    path = pw.CharField()
+    jpg = pw.CharField()
+    scale_x = pw.FloatField()
+    rotation_y = pw.FloatField()
+    rotation_x = pw.FloatField()
+    scale_y = pw.FloatField()
+    upper_left_x = pw.FloatField()
+    upper_left_y = pw.FloatField()
+
+
 # =============================================================================
 # DAL
 # =============================================================================
@@ -90,6 +135,9 @@ class Database:
 
     MetaDataDirectory: pw.Model = _model_field(MetaDataDirectoryMixin)
     DBFRecord: pw.Model = _model_field(DBFRecordMixin)
+    PRJ = _model_field(PRJMixin)
+    CoordinateSystemAxisEntry = _model_field(CoordinateSystemAxisEntryMixin)
+    JGW = _model_field(JGWMixin)
 
     @classmethod
     def from_url(cls, url):
@@ -118,13 +166,16 @@ class Database:
 
         return list(attrs.asdict(self, filter=flt).values())
 
-    def store_mdir(self, mdir):
-        mdir = pathlib.Path(mdir)
-        reg = self.MetaDataDirectory(
-            path_str=str(mdir), date_str=mdir.parent.name
+    def get_or_create_mdir(self, mdir_path_or_reg):
+        if isinstance(mdir_path_or_reg, self.MetaDataDirectory):
+            return mdir_path_or_reg
+
+        mdir = pathlib.Path(mdir_path_or_reg)
+        reg = self.MetaDataDirectory.get_or_create(
+            date_str=mdir.parent.name,
+            defaults={"path_str": str(mdir)},
         )
-        reg.save()
-        return reg
+        return reg[0]
 
     def store_dbfreg(
         self,
@@ -140,8 +191,7 @@ class Database:
         scenepath,
         scenerow,
     ):
-        mdir = pathlib.Path(mdir)
-        mdir_reg = self.MetaDataDirectory.get(date_str=mdir.parent.name)
+        mdir_reg = self.get_or_create_mdir(mdir_path_or_reg=mdir)
 
         reg = self.DBFRecord(
             md_directory=mdir_reg,
@@ -157,3 +207,88 @@ class Database:
         )
         reg.save()
         return reg
+
+    def _store_coord_axis(self, prj, *, name, abbreviation, direction, unit):
+        reg = self.CoordinateSystemAxisEntry(
+            prj=prj,
+            name=name,
+            abbreviation=abbreviation,
+            direction=direction,
+            unit_type=unit["type"],
+            unit_name=unit["name"],
+            unit_conversion_factor=unit["conversion_factor"],
+        )
+        reg.save()
+        return reg
+
+    def store_prj(
+        self,
+        mdir_path_or_reg,
+        *,
+        schema,
+        type,
+        name,
+        datum,
+        coordinate_system,
+    ):
+
+        mdir_reg = self.get_or_create_mdir(mdir_path_or_reg=mdir_path_or_reg)
+
+        prj_reg = self.PRJ(
+            md_directory=mdir_reg,
+            schema=schema,
+            type=type,
+            name=name,
+            datum_type=datum["type"],
+            datum_name=datum["name"],
+            datum_ellipsoid_name=datum["ellipsoid"]["name"],
+            datum_ellipsoid_semi_major_axis=(
+                datum["ellipsoid"]["semi_major_axis"]
+            ),
+            datum_ellipsoid_inverse_flattening=(
+                datum["ellipsoid"]["inverse_flattening"]
+            ),
+            datum_id_authority=datum["id"]["authority"],
+            datum_id_code=datum["id"]["code"],
+            coordinate_system_subtype=coordinate_system["subtype"],
+        )
+
+        prj_reg.save()
+
+        for axis in coordinate_system["axis"]:
+            self._store_coord_axis(prj=prj_reg, **axis)
+
+        return prj_reg
+
+    def store_jgw(
+        self,
+        mdir_path_or_reg,
+        *,
+        path,
+        scale_x,
+        rotation_y,
+        rotation_x,
+        scale_y,
+        upper_left_x,
+        upper_left_y,
+        jpg_path,
+    ):
+
+        mdir_reg = self.get_or_create_mdir(mdir_path_or_reg=mdir_path_or_reg)
+
+        jgw_reg = self.JGW(
+            md_directory=mdir_reg,
+            path=path,
+            scale_x=scale_x,
+            rotation_y=rotation_y,
+            rotation_x=rotation_x,
+            scale_y=scale_y,
+            upper_left_x=upper_left_x,
+            upper_left_y=upper_left_y,
+            jpg=jpg_path,
+        )
+
+        jgw_reg.save()
+
+        return jgw_reg
+

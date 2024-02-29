@@ -50,7 +50,7 @@ def _store_dbf(
     records = []
     for record in table:
         record.pop("filename", None)
-        reg = db.store_dbfreg(mdir=mdir_path, **record)
+        reg = db.store_dbfreg(mdir_path, **record)
         records.append(reg)
 
     return records  # return the records
@@ -74,10 +74,12 @@ def _store_prj(*, db, mdir_path, prj_path):
         crs = pyproj.CRS(fp.read())
 
     crs_data = crs.to_json_dict()
-    import ipdb; ipdb.set_trace()
+    crs_data["schema"] = crs_data.pop("$schema")
+
+    db.store_prj(mdir_path, **crs_data)
 
 
-def _read_jgw(jgw_path):
+def _store_jgw(*, db, mdir_path, jgw_path):
     """Reads a .jgw file and extracts the 6 lines of data.
 
     Parameters
@@ -91,6 +93,13 @@ def _read_jgw(jgw_path):
         A dictionary containing the parsed jgw data.
 
     """
+    # every jgw must has a jpg
+    jpg_path = jgw_path.with_suffix(".jpg")
+
+    if not jpg_path.exists():
+        msg = f"Missing 'jpg' path for file {sr(jgw_path)}"
+        raise ValueError(msg)
+
     with open(jgw_path) as fp:
         jgw_lines = fp.readlines()
 
@@ -105,16 +114,18 @@ def _read_jgw(jgw_path):
     ]
 
     # create a dictionary
-    jgw_dict = {
+    jgw_data = {
+        "path": str(jgw_path),
         "scale_x": jgw_lines_float[0],
         "rotation_y": jgw_lines_float[1],
         "rotation_x": jgw_lines_float[2],
         "scale_y": jgw_lines_float[3],
         "upper_left_x": jgw_lines_float[4],
         "upper_left_y": jgw_lines_float[5],
+        "jpg_path": str(jpg_path),
     }
 
-    return jgw_dict
+    db.store_jgw(mdir_path_or_reg=mdir_path, **jgw_data)
 
 
 # =============================================================================
@@ -124,7 +135,7 @@ def _read_jgw(jgw_path):
 
 def store_mdir(path, db):
 
-    mdir = db.store_mdir(path)
+    mdir = db.get_or_create_mdir(path)
 
     dbf_path = mdir.path / f"{mdir.date_str}.dbf"
     _store_dbf(db=db, mdir_path=mdir.path, dbf_path=dbf_path)
@@ -134,22 +145,7 @@ def store_mdir(path, db):
 
     jgws = {}
     for jgw_path in path.glob("*.jgw"):
-
-        # every jgw must has a jpg
-        jpg_path = jgw_path.with_suffix(".jpg")
-
-        if not jpg_path.exists():
-            msg = f"Missign 'jpg' path for file {sr(jgw_path)}"
-            raise ValueError(msg)
-
-        jgw_data = _read_jgw(jgw_path)
-        jgw_data["jpg"] = jpg_path
-
-        jgws[jgw_path] = jgw_data
-
-    data["jgw"] = jgws
-
-    return data
+        _store_jgw(db=db, mdir_path=mdir.path, jgw_path=jgw_path)
 
 
 def mkdb(path, db=None):

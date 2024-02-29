@@ -52,7 +52,7 @@ class ScanMetadataSHPDir(cli_base.CLIBase):
         #     typer.echo(typer.style(str(err), fg=typer.colors.RED))
         #     raise typer.Exit(code=1)
 
-        final_status = f"Created index for {sr(path)} -> {sr(to.name)}"
+        final_status = f"Created database for {sr(path)} -> {sr(to.name)}"
         typer.echo(typer.style(final_status, fg=typer.colors.GREEN))
         raise typer.Exit(code=0)
 
