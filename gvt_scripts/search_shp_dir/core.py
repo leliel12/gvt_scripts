@@ -148,8 +148,12 @@ def store_mdir(path, db):
         _store_jgw(db=db, mdir_path=mdir.path, jgw_path=jgw_path)
 
 
-def mkdb(path, db=None):
-    db = models.Database.from_url(db)
+def open_db(db_url=None):
+    db = models.Database.from_url(db_url)
+    return db
+
+
+def populate_db(db, path):
 
     # list all dir and files with the name metadata
     metadata_dirs = path.glob("**/*metadata*/")

@@ -1,6 +1,8 @@
 import pathlib
 import tempfile
 import datetime
+import re
+import ast
 
 import attrs
 
@@ -292,3 +294,57 @@ class Database:
 
         return jgw_reg
 
+    # QUERY ===================================================================
+
+    SIMPLE_QUERY_PATTERN = re.compile(
+        r"(?P<arg>\w+)\s*"
+        "(?P<op>!=|=|<=|<|>=|>|in|not in)\s*"
+        "(?P<value>.+)"
+    )
+
+    @attrs.define(frozen=True)
+    class _Operation:
+        arg: str = attrs.field(
+            validator=attrs.validators.matches_re(r"^[a-zA-Z][a-zA-Z0-9_]*$")
+        )
+        operation: str = attrs.field(
+            validator=attrs.validators.in_(
+                ["=", "!=", ">", ">=", "<", "<=", "in", "not in"]
+            )
+        )
+        value = attrs.field()
+
+    def parse_simple_query(self, query_str):
+
+        operations = []
+        for squery_str in query_str.split("&"):
+            match = self.SIMPLE_QUERY_PATTERN.match(squery_str.strip())
+
+            if not match:
+                raise ValueError(
+                    f"Invalid query: {query_str!r}. Hint {squery_str!r}"
+                )
+
+            groups = match.groupdict()
+
+            arg = groups["arg"].strip()
+            operation = groups["op"].strip()
+            value_str = groups["value"].strip()
+
+            if operation in ("in", "not in"):
+                value = ast.literal_eval(value_str)
+            else:
+                value = value_str
+            try:
+                operations.append(self._Operation(arg, operation, value))
+            except Exception as err:
+                raise ValueError(
+                    f"Invalid query: {query_str!r}. Hint {squery_str!r}"
+                ) from err
+
+        return tuple(operations)
+
+    def simple_search(self, query_str):
+        """Simple search over a database."""
+        operations = self.parse_simple_query(query_str)
+        import ipdb; ipdb.set_trace()

@@ -70,4 +70,4 @@ include = ["gvt_scripts", "gvt_scripts.*"]
 namespaces = false
 
 [project.scripts]
-scan-shp-dir = "gvt_scripts.scanshpdir:main"
+search-shp-dir = "gvt_scripts.search_shp_dir:main"
