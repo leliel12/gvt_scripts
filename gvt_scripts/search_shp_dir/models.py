@@ -303,7 +303,7 @@ class Database:
     )
 
     @attrs.define(frozen=True)
-    class _Operation:
+    class _SimpleOperation:
         arg: str = attrs.field(
             validator=attrs.validators.matches_re(r"^[a-zA-Z][a-zA-Z0-9_]*$")
         )
@@ -336,7 +336,7 @@ class Database:
             else:
                 value = value_str
             try:
-                operations.append(self._Operation(arg, operation, value))
+                operations.append(self._SimpleOperation(arg, operation, value))
             except Exception as err:
                 raise ValueError(
                     f"Invalid query: {query_str!r}. Hint {squery_str!r}"
