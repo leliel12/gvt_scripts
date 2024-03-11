@@ -27,6 +27,22 @@ atexit.register(shutil.rmtree, TEMP_DIR.name)
 
 
 # =============================================================================
+# NOT IMPLEMENTHED
+# =============================================================================
+
+class _Undefined:
+    def __new__(cls, *a, **kws):
+        if not hasattr(cls, "_instance"):
+            cls._instance = super().__new__(cls, *a, **kws)
+        return cls._instance
+
+    def __repr__(self):
+        return f"<{type(self).__name__}"
+
+Undefined = _Undefined()
+
+
+# =============================================================================
 # FUNCTIONS
 # =============================================================================
 

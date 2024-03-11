@@ -3,6 +3,8 @@ import tempfile
 import datetime
 import re
 import ast
+import operator
+import functools
 
 import attrs
 
@@ -10,7 +12,7 @@ import dateutil.parser as dateparser
 
 import peewee as pw
 
-from ..utils import TEMP_DIR
+from ..utils import TEMP_DIR, Undefined
 
 
 # =============================================================================
@@ -26,6 +28,16 @@ class DateableABC(pw.Model):
 
     created_at = pw.DateTimeField(default=_utc_now)
     updated_at = pw.DateTimeField(default=_utc_now)
+
+    @classmethod
+    def check_undefined(cls):
+        """Check for undefined fields in the class and raise a TypeError if \
+        found.
+
+        """
+        for aname in dir(cls):
+            if getattr(cls, aname) is Undefined:
+                raise TypeError(f"Undefined field {aname!r} in {cls!r}")
 
 
 # =============================================================================
@@ -45,7 +57,7 @@ class MetaDataDirectoryMixin(DateableABC):
 
 class DBFRecordMixin(DateableABC):
 
-    md_directory = pw.ForeignKeyField(MetaDataDirectoryMixin)
+    md_directory = Undefined
 
     batch = pw.CharField()
     tarsize = pw.IntegerField()
@@ -60,7 +72,7 @@ class DBFRecordMixin(DateableABC):
 
 class PRJMixin(DateableABC):
 
-    md_directory = pw.ForeignKeyField(MetaDataDirectoryMixin)
+    md_directory = Undefined
 
     schema = pw.CharField()
     type = pw.CharField()
@@ -79,7 +91,7 @@ class PRJMixin(DateableABC):
 
 class CoordinateSystemAxisEntryMixin(DateableABC):
 
-    prj = pw.ForeignKeyField(PRJMixin)
+    prj = Undefined
 
     name = pw.CharField()
     abbreviation = pw.CharField()
@@ -91,7 +103,7 @@ class CoordinateSystemAxisEntryMixin(DateableABC):
 
 class JGWMixin(DateableABC):
 
-    md_directory = pw.ForeignKeyField(MetaDataDirectoryMixin)
+    md_directory = Undefined
 
     path = pw.CharField()
     jpg = pw.CharField()
@@ -107,13 +119,77 @@ class JGWMixin(DateableABC):
 # DAL
 # =============================================================================
 
+SIMPLE_QUERY_PATTERN = re.compile(
+    r"(?P<arg>\w+)\s*" "(?P<op>!=|=|<=|<|>=|>|in|not in)\s*" "(?P<value>.+)"
+)
 
-def _model_field(mixin):
+
+@attrs.define(frozen=True)
+class _SimpleOperation:
+    """Simple query operation.
+
+    Args:
+        arg: Field name
+        operation: Operation
+        value: Operation value
+
+    Raises:
+        ValueError: If the operation is not supported
+
+    """
+
+    operation_methods = {
+        "=": operator.eq,
+        "!=": operator.ne,
+        ">": operator.gt,
+        ">=": operator.ge,
+        "<": operator.lt,
+        "<=": operator.le,
+        "in": operator.contains,
+        "not in": lambda a, b: opetor.not_(operator.contains(a, b)),
+    }
+
+    arg: str = attrs.field(
+        validator=attrs.validators.matches_re(r"^[a-zA-Z][a-zA-Z0-9_]*$")
+    )
+    operation: str = attrs.field(
+        validator=attrs.validators.in_(operation_methods.keys())
+    )
+    value = attrs.field()
+
+    @property
+    def bind_method(self):
+        """Operation method based on the current operation."""
+        return self.operation_methods[self.operation]
+
+    def bind(self, field):
+        """Binds a field to the object, and returns peewee expression."""
+        if field.name != self.arg:
+            raise ValueError(f"Invalid bind field {field!r}")
+
+        pyvalue = field.python_value(self.value)
+        return self.bind_method(field, pyvalue)
+
+
+def _model_field_factory(mixin, **fks):
+    """Generate a model field factory function that takes a mixin and keyword \
+    arguments for foreign keys.
+
+    This function creates a model name based on the mixin name, and then
+    creates a model with foreign key fields  based on the provided keyword
+    arguments. It returns a field with the default value set to the created
+    model.
+
+    """
 
     model_name = mixin.__name__.removesuffix("Mixin")
 
     def _make(db):
-        model = type(model_name, (db.BaseModel, mixin), {})
+        content = {}
+        for fk, fk_attr_field in fks.items():
+            content[fk] = pw.ForeignKeyField(getattr(db, fk_attr_field))
+
+        model = type(model_name, (db.BaseModel, mixin), content)
         return model
 
     default = attrs.Factory(_make, takes_self=True)
@@ -128,18 +204,22 @@ class Database:
 
     @BaseModel.default
     def _BaseModel_default(self):
-        class BaseModel(pw.Model):
+        class BaseModel(DateableABC):
 
             class Meta:
                 database = self.db
 
         return BaseModel
 
-    MetaDataDirectory: pw.Model = _model_field(MetaDataDirectoryMixin)
-    DBFRecord: pw.Model = _model_field(DBFRecordMixin)
-    PRJ = _model_field(PRJMixin)
-    CoordinateSystemAxisEntry = _model_field(CoordinateSystemAxisEntryMixin)
-    JGW = _model_field(JGWMixin)
+    MetaDataDirectory: pw.Model = _model_field_factory(MetaDataDirectoryMixin)
+    DBFRecord: pw.Model = _model_field_factory(
+        DBFRecordMixin, md_directory="MetaDataDirectory"
+    )
+    PRJ = _model_field_factory(PRJMixin, md_directory="MetaDataDirectory")
+    CoordinateSystemAxisEntry = _model_field_factory(
+        CoordinateSystemAxisEntryMixin, prj="PRJ"
+    )
+    JGW = _model_field_factory(JGWMixin, md_directory="MetaDataDirectory")
 
     @classmethod
     def from_url(cls, url):
@@ -153,6 +233,8 @@ class Database:
         return instance
 
     def __attrs_post_init__(self):
+        for model in self.models:
+            model.check_undefined()
         self.db.connect()
         self.db.create_tables(self.models)
 
@@ -296,29 +378,11 @@ class Database:
 
     # QUERY ===================================================================
 
-    SIMPLE_QUERY_PATTERN = re.compile(
-        r"(?P<arg>\w+)\s*"
-        "(?P<op>!=|=|<=|<|>=|>|in|not in)\s*"
-        "(?P<value>.+)"
-    )
-
-    @attrs.define(frozen=True)
-    class _SimpleOperation:
-        arg: str = attrs.field(
-            validator=attrs.validators.matches_re(r"^[a-zA-Z][a-zA-Z0-9_]*$")
-        )
-        operation: str = attrs.field(
-            validator=attrs.validators.in_(
-                ["=", "!=", ">", ">=", "<", "<=", "in", "not in"]
-            )
-        )
-        value = attrs.field()
-
     def parse_simple_query(self, query_str):
 
         operations = []
         for squery_str in query_str.split("&"):
-            match = self.SIMPLE_QUERY_PATTERN.match(squery_str.strip())
+            match = SIMPLE_QUERY_PATTERN.match(squery_str.strip())
 
             if not match:
                 raise ValueError(
@@ -336,7 +400,7 @@ class Database:
             else:
                 value = value_str
             try:
-                operations.append(self._SimpleOperation(arg, operation, value))
+                operations.append(_SimpleOperation(arg, operation, value))
             except Exception as err:
                 raise ValueError(
                     f"Invalid query: {query_str!r}. Hint {squery_str!r}"
@@ -344,7 +408,34 @@ class Database:
 
         return tuple(operations)
 
+    def compile_query(self, operations):
+        fields = {}
+        for model in self.models:
+            fields.update(model._meta.fields)
+
+        exprs = []
+        for opdef in operations:
+            if opdef.arg not in fields:
+                raise ValueError(f"Unknow field {opdef.arg!r}")
+
+            field = fields[opdef.arg]
+            exprs.append(opdef.bind(field))
+
+        compiled = functools.reduce(operator.and_, exprs)
+        return compiled
+
     def simple_search(self, query_str):
         """Simple search over a database."""
         operations = self.parse_simple_query(query_str)
-        import ipdb; ipdb.set_trace()
+        expr = self.compile_query(operations)
+
+        query = (
+            self.JGW.select()
+            .join(self.MetaDataDirectory)
+            .join_from(self.DBFRecord, self.MetaDataDirectory)
+            .join_from(self.PRJ, self.MetaDataDirectory)
+            .join_from(self.CoordinateSystemAxisEntry, self.PRJ)
+        ).where(expr)
+        import ipdb
+
+        ipdb.set_trace()
