@@ -16,5 +16,6 @@ capabilities."""
 # =============================================================================
 
 from .cli import main
+from .core import open_db, populate_db, store_mdir
 
 __all__ = ["main"]

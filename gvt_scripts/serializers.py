@@ -19,6 +19,9 @@ en el stream con el formato deseado.
 # IMPORTS
 # =============================================================================
 
+import csv
+import io
+
 import dicttoxml
 
 import orjson
@@ -26,6 +29,8 @@ import orjson
 import tomli_w
 
 import yaml
+
+from . import utils
 
 
 # =============================================================================
@@ -45,6 +50,17 @@ def register(ext):
     return decorator
 
 
+def serialize(stream, format, obj):
+    """Serialize a dict/list/scalar to a given format.
+
+    Also ensures that the stream is in text mode.
+
+    """
+    if stream.mode == "wb":
+        stream = io.TextIOWrapper(stream, encoding="utf-8")
+    SERIALIZERS[format](obj, stream)
+
+
 # =============================================================================
 # SERIALIZERS
 # =============================================================================
@@ -52,28 +68,38 @@ def register(ext):
 
 @register(".json")
 def to_json(d, stream):
-    """Serialize a dictionary to JSON."""
+    """Serialize a dict/list/scalar to JSON."""
     src = orjson.dumps(
         d, stream, option=orjson.OPT_NAIVE_UTC | orjson.OPT_INDENT_2
     )
-    stream.write(src)
+    stream.write(src.decode("utf-8"))
 
 
 @register(".yaml")
+@register(".yml")
 def to_yaml(d, stream):
-    """Serialize a dictionary to YAML."""
-    src = yaml.safe_dump(d).encode("utf-8")
+    """Serialize a dict/list/scalar to YAML."""
+    src = yaml.safe_dump(d)
     stream.write(src)
-
-
-@register(".toml")
-def to_toml(d, stream):
-    """Serialize a dictionary to TOML."""
-    tomli_w.dump(d, stream)
 
 
 @register(".xml")
 def to_xml(d, stream):
-    """Serialize a dictionary to XML."""
-    xml = dicttoxml.dicttoxml(d, custom_root="shap-zip")
+    """Serialize a dict/list/scalar to XML."""
+    xml = dicttoxml.dicttoxml(d, custom_root="data").decode("utf-8")
     stream.write(xml)
+
+
+# CSV =========================================================================
+
+
+@register(".csv")
+def to_csv(d, stream):
+    """Serialize a dict/list/scalar to csv."""
+
+    d = list(map(utils.flatten, d)) if isinstance(d, list) else d[0]
+    fieldnames = list(d[0])
+
+    escritor_csv = csv.DictWriter(stream, fieldnames=fieldnames)
+    escritor_csv.writeheader()
+    escritor_csv.writerows(d)

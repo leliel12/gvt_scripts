@@ -15,6 +15,7 @@
 # =============================================================================
 
 import pathlib
+import sys
 
 import attr
 
@@ -26,6 +27,7 @@ import typer
 from . import core
 from .. import cli_base
 from ..utils import sr
+from .. import serializers
 
 
 # =============================================================================
@@ -42,9 +44,7 @@ class SearchSHPDir(cli_base.CLIBase):
         path: pathlib.Path = typer.Argument(
             ..., help="Path to the directory."
         ),
-        db: pathlib.Path = typer.Option(
-            help="URL to the dtabase file"
-        ),
+        db: pathlib.Path = typer.Option(help="URL to the dtabase file"),
     ):
         """Create a database with given input and output paths."""
         db_url = db
@@ -63,12 +63,23 @@ class SearchSHPDir(cli_base.CLIBase):
         self,
         db: pathlib.Path = typer.Option(..., help="URL to the dtabase file"),
         query: str = typer.Option(..., help="Query to search for"),
+        to: typer.FileBinaryWrite = typer.Option(
+            None,  help="Path to the output file"
+        ),
     ):
         """Simple search over a database."""
+        format = ".yaml" if to is None else pathlib.Path(to.name).suffix
+        to = sys.stdout if to is None else to
+
         # try:
         db_url = db
         db = core.open_db(db_url=db_url)
-        result = db.simple_search(query)
+        records = db.simple_search(query)
+        result = core.models.records_as_list(records)
+        serializers.serialize(to, format, result)
+
+
+
 
     # except Exception as err:
     #     typer.echo(typer.style(str(err), fg=typer.colors.RED))

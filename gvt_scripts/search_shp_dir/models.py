@@ -409,9 +409,26 @@ class Database:
         return tuple(operations)
 
     def compile_query(self, operations):
+        # this field types can be searched
+        forbiden_ftypes = (
+            pw.ForeignKeyField,
+            pw.PrimaryKeyField,
+            pw.AutoField,
+        )
+        # this field names cant be searched
+        forbiden_fields = tuple(DateableABC._meta.fields)
+
+        # collect all fields
         fields = {}
         for model in self.models:
-            fields.update(model._meta.fields)
+            new_fields = {
+                fn: fld
+                for fn, fld in model._meta.fields.items()
+                if not (
+                    isinstance(fld, forbiden_ftypes) or fn in forbiden_fields
+                )
+            }
+            fields.update(new_fields)
 
         exprs = []
         for opdef in operations:
@@ -430,12 +447,94 @@ class Database:
         expr = self.compile_query(operations)
 
         query = (
-            self.JGW.select()
-            .join(self.MetaDataDirectory)
-            .join_from(self.DBFRecord, self.MetaDataDirectory)
-            .join_from(self.PRJ, self.MetaDataDirectory)
-            .join_from(self.CoordinateSystemAxisEntry, self.PRJ)
-        ).where(expr)
-        import ipdb
+            (
+                self.JGW.select()
+                .join(self.MetaDataDirectory)
+                .join(self.DBFRecord)
+                .switch(self.MetaDataDirectory)
+                .join(self.PRJ)
+                .join(self.CoordinateSystemAxisEntry)
+            )
+            .where(expr)
+            .distinct()
+        )
 
-        ipdb.set_trace()
+        return tuple(query)
+
+
+# =============================================================================
+# FUNCTIONS
+# =============================================================================
+
+
+def model_to_dict(model_obj, visited=None, upper_level_model=None):
+    """Recursively converts a Peewee model object and its related objects to
+    a dictionary.
+
+    Parameters
+    ----------
+    model_obj : Peewee Model
+        The model object to convert to a dictionary.
+    visited : set, optional
+        A set to keep track of visited objects to avoid circular references.
+    upper_level_model : set, optional
+        A set to keep track of upper-level models to avoid revisiting them.
+
+    Returns
+    -------
+    dict
+        A dictionary representation of the model object and its related objects.
+
+    """
+
+    visited = set() if visited is None else visited
+    upper_level_model = (
+        set() if upper_level_model is None else upper_level_model
+    )
+
+    if model_obj in visited or type(model_obj) in upper_level_model:
+        return None
+
+    visited.add(model_obj)
+    upper_level_model.add(type(model_obj))
+
+    related_objects = {}
+
+    # Convert the rest of the attributes to a dictionary
+    data = dict(model_obj.__data__)
+
+    # Get attributes with normal references from the model
+    for fkfield in model_obj._meta.refs:
+        # Avoiding circular references and revisiting upper-level models
+        related_model = getattr(model_obj, fkfield.name)
+        related_data = model_to_dict(related_model, visited, upper_level_model)
+        if related_data is not None:
+            data[fkfield.name] = related_data
+
+    # Process back references
+    for brmodel, brfields in model_obj._meta.model_backrefs.items():
+        # Avoid revisiting upper-level models
+        if brmodel in upper_level_model:
+            continue
+
+        backrefs = []
+        for brfield in brfields:
+            for refmodel in getattr(model_obj, brfield.backref):
+                # Recursively convert back-referenced models to dictionaries
+                refmodel_data = model_to_dict(
+                    refmodel, visited, upper_level_model
+                )
+                if refmodel_data is not None:
+                    backrefs.append(refmodel_data)
+
+        if backrefs:
+            data[brmodel.__name__] = backrefs
+
+    return data
+
+
+def records_as_list(records):
+    rlist = []
+    for model in records:
+        rlist.append(model_to_dict(model))
+    return rlist
