@@ -64,26 +64,40 @@ class SearchSHPDir(cli_base.CLIBase):
         db: pathlib.Path = typer.Option(..., help="URL to the dtabase file"),
         query: str = typer.Option(..., help="Query to search for"),
         to: typer.FileBinaryWrite = typer.Option(
-            None,  help="Path to the output file"
+            None, help="Path to the output file"
         ),
     ):
         """Simple search over a database."""
-        format = ".yaml" if to is None else pathlib.Path(to.name).suffix
+        format = ".json" if to is None else pathlib.Path(to.name).suffix
         to = sys.stdout if to is None else to
 
-        # try:
-        db_url = db
-        db = core.open_db(db_url=db_url)
-        records = db.simple_search(query)
-        result = core.models.records_as_list(records)
-        serializers.serialize(to, format, result)
+        try:
+            db_url = db
+            db = core.open_db(db_url=db_url)
+            records = db.simple_search(query)
+            result = core.models.records_as_list(records)
+            serializers.serialize(to, format, result)
 
+            if to is sys.stdout():
+                sys.stdout.write("\n")
+            sys.stdout.flush()
 
+        except Exception as err:
+            typer.echo(typer.style(str(err), fg=typer.colors.RED))
+            raise typer.Exit(code=1)
 
+    def fields(self):
+        """List all fields available in a database."""
+        db = core.open_db(db_url=None)
+        fields = db.searcheable_fields_by_models()
 
-    # except Exception as err:
-    #     typer.echo(typer.style(str(err), fg=typer.colors.RED))
-    #     raise typer.Exit(code=1)
+        str_fields = {}
+        for model, fields in fields.items():
+            str_fields[model.__name__] = [fld.name for fld in fields]
+
+        serializers.serialize(sys.stdout, ".json", str_fields)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
 
 
 def main():

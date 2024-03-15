@@ -59,6 +59,7 @@ def serialize(stream, format, obj):
     if stream.mode == "wb":
         stream = io.TextIOWrapper(stream, encoding="utf-8")
     SERIALIZERS[format](obj, stream)
+    stream.flush()
 
 
 # =============================================================================
@@ -79,7 +80,7 @@ def to_json(d, stream):
 @register(".yml")
 def to_yaml(d, stream):
     """Serialize a dict/list/scalar to YAML."""
-    src = yaml.safe_dump(d)
+    src = yaml.safe_dump(d, indent=2)
     stream.write(src)
 
 

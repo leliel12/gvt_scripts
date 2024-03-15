@@ -5,6 +5,7 @@ import re
 import ast
 import operator
 import functools
+from collections import defaultdict
 
 import attrs
 
@@ -224,12 +225,9 @@ class Database:
     @classmethod
     def from_url(cls, url):
         """Alternative constructor."""
-        if url is None:
-            _, url = tempfile.mkstemp(suffix=".sqlite3", dir=TEMP_DIR.name)
-
+        url = ":memory:" if url is None else url
         db = pw.SqliteDatabase(url)
         instance = cls(db=db)
-
         return instance
 
     def __attrs_post_init__(self):
@@ -378,6 +376,37 @@ class Database:
 
     # QUERY ===================================================================
 
+    def get_searcheable_fields(self):
+        # this field types can be searched
+        forbiden_ftypes = (
+            pw.ForeignKeyField,
+            pw.PrimaryKeyField,
+            pw.AutoField,
+        )
+        # this field names cant be searched
+        forbiden_fields = tuple(DateableABC._meta.fields)
+
+        fields = {}
+        for model in self.models:
+            new_fields = {
+                fn: fld
+                for fn, fld in model._meta.fields.items()
+                if not (
+                    isinstance(fld, forbiden_ftypes) or fn in forbiden_fields
+                )
+            }
+            fields.update(new_fields)
+        return fields
+
+    def searcheable_fields_by_models(self):
+        fields = self.get_searcheable_fields()
+        by_models = defaultdict(list)
+
+        for fname, fld in fields.items():
+            by_models[fld.model].append(fld)
+        return dict(by_models)
+
+
     def parse_simple_query(self, query_str):
 
         operations = []
@@ -409,27 +438,7 @@ class Database:
         return tuple(operations)
 
     def compile_query(self, operations):
-        # this field types can be searched
-        forbiden_ftypes = (
-            pw.ForeignKeyField,
-            pw.PrimaryKeyField,
-            pw.AutoField,
-        )
-        # this field names cant be searched
-        forbiden_fields = tuple(DateableABC._meta.fields)
-
-        # collect all fields
-        fields = {}
-        for model in self.models:
-            new_fields = {
-                fn: fld
-                for fn, fld in model._meta.fields.items()
-                if not (
-                    isinstance(fld, forbiden_ftypes) or fn in forbiden_fields
-                )
-            }
-            fields.update(new_fields)
-
+        fields = self.get_searcheable_fields()
         exprs = []
         for opdef in operations:
             if opdef.arg not in fields:
