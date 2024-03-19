@@ -59,7 +59,6 @@ def serialize(stream, format, obj):
     if stream.mode == "wb":
         stream = io.TextIOWrapper(stream, encoding="utf-8")
     SERIALIZERS[format](obj, stream)
-    stream.flush()
 
 
 # =============================================================================

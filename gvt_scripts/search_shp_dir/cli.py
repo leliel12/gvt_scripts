@@ -67,7 +67,17 @@ class SearchSHPDir(cli_base.CLIBase):
             None, help="Path to the output file"
         ),
     ):
-        """Simple search over a database."""
+        """Simple search over a database.
+
+        The query string should consist of one or more conditions in the format:
+        "field operator value" separated by "&". Supported operators are: "=", "!=",
+        "<", "<=", ">", ">=", "in", "not in".
+
+        One example of a query is "satellite = 'Landsat-8' & cloudperce <= 10"
+
+        The format are given by the "to" extension: Available formats {formats}
+
+        """
         format = ".json" if to is None else pathlib.Path(to.name).suffix
         to = sys.stdout if to is None else to
 
@@ -78,13 +88,17 @@ class SearchSHPDir(cli_base.CLIBase):
             result = core.models.records_as_list(records)
             serializers.serialize(to, format, result)
 
-            if to is sys.stdout():
+            if to is sys.stdout:
                 sys.stdout.write("\n")
-            sys.stdout.flush()
+                to.flush()
 
         except Exception as err:
             typer.echo(typer.style(str(err), fg=typer.colors.RED))
             raise typer.Exit(code=1)
+
+    ssearch.__doc__ = ssearch.__doc__.format(
+        formats=set(serializers.SERIALIZERS)
+    )
 
     def fields(self):
         """List all fields available in a database."""
