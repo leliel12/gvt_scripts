@@ -137,7 +137,7 @@ class SearchSHPDir(cli_base.CLIBase):
 
                 rich.print(stats)
         except Exception as err:
-            typer.secho(str(err), fg=typer.colors.RED)
+            typer.secho("Error: " + str(err), fg=typer.colors.RED)
             raise typer.Exit(code=1)
 
 

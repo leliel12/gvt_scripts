@@ -8,8 +8,8 @@
 # DOCS
 # =============================================================================
 
-"""Scandirectory of satellite observation create a db and provide search \
-capabilities."""
+"""Scandirectory of satellite observation create a indexed metadata db and \
+provide search capabilities."""
 
 # =============================================================================
 # IMPORTS

@@ -52,7 +52,7 @@ Undefined = _Undefined()
 
 def sr(obj):
     """Return the repr of the string representation of the given object."""
-    return repr(str(obj))
+    return f"{obj!r}"
 
 
 def flatten(obj, key="", separator="."):
