@@ -82,3 +82,19 @@ $ search-shp-dir fields
 This command lists all the fields available in the database.
 
 ---
+
+### `$ search-shp-dir fields-info`
+
+Usage:
+
+```bash
+$ search-shp-dir fields-info <fields>... --db <database_file_path>
+```
+
+This command returns information about the type and possible values of given fields.
+
+Arguments:
+- `fields FIELDS...`: Fields names [required]
+
+Options:
+- `--db PATH`: URL to the database file [required]

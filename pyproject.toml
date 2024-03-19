@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gvt_scripts"
-version = "0.2"
+version = "2024.04.19"
 authors = [{name = "Juan B Cabral & GVT-CONAE", email = "jbcabral@unc.edu.ar"}]
 readme = "README.md"
 license = {file = "LICENSE.txt"}
@@ -56,6 +56,8 @@ dependencies = [
     "joblib",
     "peewee",
     "python-dateutil",
+    "pandas",
+    "rich",
 
     # shp_metadata
     "pyproj",

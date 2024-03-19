@@ -23,6 +23,8 @@ import joblib
 
 import typer
 
+import rich
+
 # internal
 from . import core
 from .. import cli_base
@@ -55,8 +57,10 @@ class SearchSHPDir(cli_base.CLIBase):
             typer.echo(typer.style(str(err), fg=typer.colors.RED))
             raise typer.Exit(code=1)
 
-        final_status = f"Created database for {sr(path)} -> {sr(db_url)}"
-        typer.echo(typer.style(final_status, fg=typer.colors.GREEN))
+        typer.secho(
+            f"Created database for {sr(path)} -> {sr(db_url)}",
+            fg=typer.colors.GREEN,
+        )
         raise typer.Exit(code=0)
 
     def ssearch(
@@ -79,21 +83,20 @@ class SearchSHPDir(cli_base.CLIBase):
 
         """
         format = ".json" if to is None else pathlib.Path(to.name).suffix
-        to = sys.stdout if to is None else to
 
         try:
             db_url = db
             db = core.open_db(db_url=db_url)
             records = db.simple_search(query)
             result = core.models.records_as_list(records)
-            serializers.serialize(to, format, result)
 
-            if to is sys.stdout:
-                sys.stdout.write("\n")
-                to.flush()
+            if to is None:
+                rich.print(result)
+            else:
+                serializers.serialize(to, format, result)
 
         except Exception as err:
-            typer.echo(typer.style(str(err), fg=typer.colors.RED))
+            typer.secho(str(err), fg=typer.colors.RED)
             raise typer.Exit(code=1)
 
     ssearch.__doc__ = ssearch.__doc__.format(
@@ -109,9 +112,32 @@ class SearchSHPDir(cli_base.CLIBase):
         for model, fields in fields.items():
             str_fields[model.__name__] = [fld.name for fld in fields]
 
-        serializers.serialize(sys.stdout, ".json", str_fields)
-        sys.stdout.write("\n")
-        sys.stdout.flush()
+        rich.print(str_fields)
+
+    def fields_info(
+        self,
+        db: pathlib.Path = typer.Option(..., help="URL to the dtabase file"),
+        fields: list[str] = typer.Argument(..., help="Fields names"),
+    ):
+        """Return an information about the type and posible values of a given fields."""
+
+
+
+        db_url = db
+        db = core.open_db(db_url=db_url)
+        infos = [db.field_info(field) for field in fields]
+        for info in infos:
+            stats = info.pop("stats")
+            field_name = info.pop("field_name")
+            rich.print(rich.markdown.Markdown(f"# **Field:** {field_name!r}"))
+            for k, v in info.items():
+                k = k.replace("_", " ").title()
+                rich.print(rich.markdown.Markdown(f"**{k}:** {v}"))
+
+            rich.print(stats)
+
+
+
 
 
 def main():

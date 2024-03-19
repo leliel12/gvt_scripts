@@ -6,6 +6,8 @@ import ast
 import operator
 import functools
 from collections import defaultdict
+import statistics as st
+import math
 
 import attrs
 
@@ -406,6 +408,42 @@ class Database:
             by_models[fld.model].append(fld)
         return dict(by_models)
 
+    def field_info(self, field_name):
+        field = self.get_searcheable_fields()[field_name]
+        model = field.model
+        query = tuple(model.select(field).distinct().scalars())
+        field_type = field.field_type
+
+        if isinstance(field, (pw.IntegerField, pw.FloatField)):
+            stats = {
+                "Count": len(query),
+                "Uniques": len(set(query)),
+                "Min": min(query),
+                "Max": max(query),
+                "NA": (math.nan in query or None in query),
+                "Mean": st.mean(query),
+                "Median": st.median(query),
+                "Std": st.stdev(query) if len(query) > 1 else 0.,
+            }
+        elif isinstance(field, (pw.CharField, pw.TextField)):
+            uniques = tuple(set(query))
+            stats = {
+                "Count": len(query),
+                "Uniques": len(uniques),
+                "Values": (
+                    uniques[:10] + ("...",) if len(uniques) > 10 else uniques
+                ),
+            }
+        else:
+            stats = {"??": "??"}
+
+        info = {
+            "field_name": field_name,
+            "model": model,
+            "field_type": field.field_type,
+            "stats": stats,
+        }
+        return info
 
     def parse_simple_query(self, query_str):
 
@@ -451,7 +489,50 @@ class Database:
         return compiled
 
     def simple_search(self, query_str):
-        """Simple search over a database."""
+        """Performs a simple search over the database using the provided query string.
+
+        The query string should consist of one or more conditions in the format:
+        "field operator value" separated by "&". Supported operators are: "=", "!=",
+        "<", "<=", ">", ">=", "in", "not in".
+
+        Parameters
+        ----------
+        query_str : str
+            The query string specifying the search conditions.
+
+        Returns
+        -------
+        tuple
+            A tuple of matching records from the database.
+
+        Raises
+        ------
+        ValueError
+            If the query string is invalid or contains unknown fields.
+
+        Examples
+        --------
+        >>> db.simple_search("satellite = 'Landsat-8' & cloudperce <= 10")
+        (<JGW: 1>, <JGW: 2>, <JGW: 3>)
+
+        Notes
+        -----
+        The search is performed by joining multiple tables (JGW, MetaDataDirectory,
+        DBFRecord, PRJ, CoordinateSystemAxisEntry) and applying the specified
+        conditions to filter the records. The resulting records are returned as a
+        tuple of distinct JGW objects.
+
+        The function first parses the query string into a list of `_SimpleOperation`
+        objects using the `parse_simple_query` method. It then compiles the operations
+        into a peewee expression using the `compile_query` method. Finally, it
+        constructs a peewee query by joining the necessary tables, applying the
+        compiled expression as a filter, and returning the distinct JGW records.
+
+        See Also
+        --------
+        parse_simple_query : Parse the query string into `_SimpleOperation` objects.
+        compile_query : Compile the query operations into a peewee expression.
+        """
         operations = self.parse_simple_query(query_str)
         expr = self.compile_query(operations)
 
