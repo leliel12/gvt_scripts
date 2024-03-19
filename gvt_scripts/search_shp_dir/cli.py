@@ -124,17 +124,21 @@ class SearchSHPDir(cli_base.CLIBase):
 
 
         db_url = db
-        db = core.open_db(db_url=db_url)
-        infos = [db.field_info(field) for field in fields]
-        for info in infos:
-            stats = info.pop("stats")
-            field_name = info.pop("field_name")
-            rich.print(rich.markdown.Markdown(f"# **Field:** {field_name!r}"))
-            for k, v in info.items():
-                k = k.replace("_", " ").title()
-                rich.print(rich.markdown.Markdown(f"**{k}:** {v}"))
+        try:
+            db = core.open_db(db_url=db_url)
+            infos = [db.field_info(field) for field in fields]
+            for info in infos:
+                stats = info.pop("stats")
+                field_name = info.pop("field_name")
+                rich.print(rich.markdown.Markdown(f"# **Field:** {field_name!r}"))
+                for k, v in info.items():
+                    k = k.replace("_", " ").title()
+                    rich.print(rich.markdown.Markdown(f"**{k}:** {v}"))
 
-            rich.print(stats)
+                rich.print(stats)
+        except Exception as err:
+            typer.secho(str(err), fg=typer.colors.RED)
+            raise typer.Exit(code=1)
 
 
 
