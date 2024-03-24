@@ -47,6 +47,7 @@ class SearchSHPDir(cli_base.CLIBase):
             ..., help="Path to the directory."
         ),
         db: pathlib.Path = typer.Option(help="URL to the dtabase file"),
+        verbose: bool = typer.Option(False, help="More info about the run"),
     ):
         """Create a database with given input and output paths."""
         db_url = db
@@ -54,7 +55,9 @@ class SearchSHPDir(cli_base.CLIBase):
             db = core.open_db(db_url=db_url)
             db = core.populate_db(path=path, db=db)
         except Exception as err:
-            typer.echo(typer.style(str(err), fg=typer.colors.RED))
+            typer.secho(str(err), fg=typer.colors.RED)
+            if verbose:
+                raise err
             raise typer.Exit(code=1)
 
         typer.secho(
@@ -70,6 +73,7 @@ class SearchSHPDir(cli_base.CLIBase):
         to: typer.FileBinaryWrite = typer.Option(
             None, help="Path to the output file"
         ),
+        verbose: bool = typer.Option(False, help="More info about the run"),
     ):
         """Simple search over a database.
 
@@ -97,6 +101,8 @@ class SearchSHPDir(cli_base.CLIBase):
 
         except Exception as err:
             typer.secho(str(err), fg=typer.colors.RED)
+            if verbose:
+                raise err
             raise typer.Exit(code=1)
 
     ssearch.__doc__ = ssearch.__doc__.format(
@@ -118,6 +124,7 @@ class SearchSHPDir(cli_base.CLIBase):
         self,
         db: pathlib.Path = typer.Option(..., help="URL to the dtabase file"),
         fields: list[str] = typer.Argument(..., help="Fields names"),
+        verbose: bool = typer.Option(False, help="More info about the run"),
     ):
         """Return an information about the type and posible values of a given fields."""
 
@@ -138,7 +145,10 @@ class SearchSHPDir(cli_base.CLIBase):
                 rich.print(stats)
         except Exception as err:
             typer.secho("Error: " + str(err), fg=typer.colors.RED)
+            if verbose:
+                raise err
             raise typer.Exit(code=1)
+
 
 
 

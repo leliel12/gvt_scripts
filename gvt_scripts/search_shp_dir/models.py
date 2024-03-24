@@ -66,8 +66,8 @@ class DBFRecordMixin(DateableABC):
     tarsize = pw.IntegerField()
     satellite = pw.CharField()
     sensorid = pw.CharField()
-    acquisitio = pw.DateField()
-    cloudperce = pw.IntegerField()
+    acquisitio = pw.DateField(null=True)
+    cloudperce = pw.FloatField()
     orbitid = pw.IntegerField()
     scenepath = pw.IntegerField()
     scenerow = pw.IntegerField()
@@ -284,7 +284,7 @@ class Database:
             satellite=satellite,
             sensorid=sensorid,
             acquisitio=acquisitio,
-            cloudperce=int(cloudperce),
+            cloudperce=float(cloudperce.replace(",", ".", 1)),
             orbitid=int(orbitid),
             scenepath=int(scenepath),
             scenerow=int(scenerow),
